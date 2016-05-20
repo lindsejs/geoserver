@@ -231,7 +231,7 @@ abstract class DimensionHelper {
         String defaultValue = strategy.getCapabilitiesRepresentation(resource, dimensionName, dimensionInfo);
         if(defaultValue == null) {
             defaultValue = fallback;
-        } 
+        }
         return defaultValue;
     }
 
@@ -526,18 +526,28 @@ abstract class DimensionHelper {
      * @throws IOException
      */
     private void handleTimeDimensionVector(FeatureTypeInfo typeInfo) throws IOException {
-        // build the time dim representation
-        TreeSet<Date> values = wms.getFeatureTypeTimes(typeInfo);
-        String timeMetadata;
-        if (values != null && !values.isEmpty()) {
-            DimensionInfo timeInfo = typeInfo.getMetadata().get(ResourceInfo.TIME,
-                DimensionInfo.class);
-            timeMetadata = getTemporalDomainRepresentation(timeInfo, values);
-        } else {
-            timeMetadata = "";
+        
+        // cache time dimension in catalog, to refresh after data change - use catalog reload
+        Map<Object,Object> userData = typeInfo.getFeatureType().getUserData();
+        
+        if(userData.containsKey("time_values") && userData.containsKey("time_default_val")){
+            writeTimeDimension((String)userData.get("time_values"), (String)userData.get("time_default_val"));
+        }else{
+            // build the time dim representation
+            TreeSet<Date> values = wms.getFeatureTypeTimes(typeInfo);
+            String timeMetadata;
+            if (values != null && !values.isEmpty()) {
+                DimensionInfo timeInfo = typeInfo.getMetadata().get(ResourceInfo.TIME,
+                    DimensionInfo.class);
+                timeMetadata = getTemporalDomainRepresentation(timeInfo, values);
+            } else {
+                timeMetadata = "";
+            }
+            String defaultValue = getDefaultValueRepresentation(typeInfo, ResourceInfo.TIME, DimensionDefaultValueSetting.TIME_CURRENT);
+            userData.put("time_values", timeMetadata);
+            userData.put("time_default_val", defaultValue);
+            writeTimeDimension(timeMetadata, defaultValue);
         }
-        String defaultValue = getDefaultValueRepresentation(typeInfo, ResourceInfo.TIME, DimensionDefaultValueSetting.TIME_CURRENT);
-        writeTimeDimension(timeMetadata, defaultValue);
     }
     
     private void handleElevationDimensionVector(FeatureTypeInfo typeInfo) throws IOException {
