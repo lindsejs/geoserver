@@ -59,12 +59,12 @@
     </constructor-arg>
   </bean>
 
-  <bean id="gwcInitializer" class="org.geoserver.gwc.config.GWCInitializer">
+  <!--bean id="gwcInitializer" class="org.geoserver.gwc.config.GWCInitializer">
     <constructor-arg ref="gwcGeoServervConfigPersister" />
     <constructor-arg ref="rawCatalog" />
     <constructor-arg ref="GeoSeverTileLayerCatalog" />
     <property name="blobStore" ref="gwcConfigBlobStore" />
-  </bean>
+  </bean-->
 
   <bean id="cachingWebMapService" class="org.geoserver.gwc.wms.CachingWebMapService">
     <description>
