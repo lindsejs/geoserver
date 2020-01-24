@@ -1735,5 +1735,15 @@
         </dependency>
       </dependencies>
     </profile>
+    <profile>
+      <id>json-ld</id>
+      <dependencies>
+        <dependency>
+          <groupId>org.geoserver.community</groupId>
+          <artifactId>gs-json-ld</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
   </profiles>
 </project>
