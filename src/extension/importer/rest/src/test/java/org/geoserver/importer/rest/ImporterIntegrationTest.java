@@ -685,11 +685,7 @@ public class ImporterIntegrationTest extends ImporterTestSupport {
         assertNotNull(layer);
     }
 
-    /**
-     * Attribute computation integration test
-     *
-     * @throws Exception
-     */
+    /** Attribute computation integration test */
     @Test
     public void testAttributeCompute() throws Exception {
         // create H2 store to act as a target
@@ -714,13 +710,16 @@ public class ImporterIntegrationTest extends ImporterTestSupport {
 
         MockHttpServletResponse resp =
                 postAsServletResponse(
-                        RestBaseController.ROOT_PATH + "/imports/0/tasks/0/transforms",
+                        RestBaseController.ROOT_PATH
+                                + "/imports/"
+                                + context.getId()
+                                + "/tasks/0/transforms",
                         json,
                         "application/json");
         assertEquals(HttpStatus.CREATED.value(), resp.getStatus());
 
         // run it
-        context = importer.getContext(0);
+        context = importer.getContext(context.getId());
         importer.run(context);
 
         // check created type, layer and database table
@@ -758,7 +757,7 @@ public class ImporterIntegrationTest extends ImporterTestSupport {
             importer.update(context, new SpatialFile(new File(dir, "archsites.shp")));
 
             // run it
-            context = importer.getContext(0);
+            context = importer.getContext(context.getId());
             importer.run(context);
 
             // check the layer has been created
@@ -818,13 +817,16 @@ public class ImporterIntegrationTest extends ImporterTestSupport {
 
         MockHttpServletResponse resp =
                 postAsServletResponse(
-                        RestBaseController.ROOT_PATH + "/imports/0/tasks/0/transforms",
+                        RestBaseController.ROOT_PATH
+                                + "/imports/"
+                                + context.getId()
+                                + "/tasks/0/transforms",
                         json,
                         "application/json");
         assertEquals(HttpStatus.CREATED.value(), resp.getStatus());
 
         // run it
-        context = importer.getContext(0);
+        context = importer.getContext(context.getId());
         importer.run(context);
 
         // check the layer has been created
@@ -869,13 +871,16 @@ public class ImporterIntegrationTest extends ImporterTestSupport {
 
         MockHttpServletResponse resp =
                 postAsServletResponse(
-                        RestBaseController.ROOT_PATH + "/imports/0/tasks/0/transforms",
+                        RestBaseController.ROOT_PATH
+                                + "/imports/"
+                                + context.getId()
+                                + "/tasks/0/transforms",
                         json,
                         "application/json");
         assertEquals(HttpStatus.CREATED.value(), resp.getStatus());
 
         // run it
-        context = importer.getContext(0);
+        context = importer.getContext(context.getId());
         importer.run(context);
 
         // check the layer has been created
@@ -887,7 +892,7 @@ public class ImporterIntegrationTest extends ImporterTestSupport {
     }
 
     @Test
-    public void testRunWithTimeDimention() throws Exception {
+    public void testRunWithTimeDimension() throws Exception {
         Catalog cat = getCatalog();
 
         DataStoreInfo ds = createH2DataStore(cat.getDefaultWorkspace().getName(), "ming");
@@ -916,13 +921,16 @@ public class ImporterIntegrationTest extends ImporterTestSupport {
 
         MockHttpServletResponse resp =
                 postAsServletResponse(
-                        RestBaseController.ROOT_PATH + "/imports/0/tasks/0/transforms",
+                        RestBaseController.ROOT_PATH
+                                + "/imports/"
+                                + context.getId()
+                                + "/tasks/0/transforms",
                         json,
                         "application/json");
         assertEquals(HttpStatus.CREATED.value(), resp.getStatus());
 
         // run it
-        context = importer.getContext(0);
+        context = importer.getContext(context.getId());
         ImportTask task = context.getTasks().get(0);
         task.setDirect(false);
         task.setStore(ds);

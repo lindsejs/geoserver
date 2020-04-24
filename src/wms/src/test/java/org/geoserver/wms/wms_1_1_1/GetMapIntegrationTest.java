@@ -6,14 +6,15 @@
 package org.geoserver.wms.wms_1_1_1;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.awt.Color;
-import java.awt.Transparency;
+import java.awt.*;
+import java.awt.image.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ComponentColorModel;
@@ -24,6 +25,7 @@ import java.io.InputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,9 +54,11 @@ import org.geoserver.catalog.LayerGroupInfo;
 import org.geoserver.catalog.LayerInfo;
 import org.geoserver.catalog.MetadataMap;
 import org.geoserver.catalog.PublishedInfo;
+import org.geoserver.catalog.StyleInfo;
 import org.geoserver.catalog.TestHttpClientProvider;
 import org.geoserver.catalog.impl.DataStoreInfoImpl;
 import org.geoserver.catalog.impl.FeatureTypeInfoImpl;
+import org.geoserver.catalog.impl.LegendInfoImpl;
 import org.geoserver.config.GeoServer;
 import org.geoserver.config.GeoServerInfo;
 import org.geoserver.config.util.XStreamPersister;
@@ -67,12 +71,7 @@ import org.geoserver.feature.retype.RetypingDataStore;
 import org.geoserver.test.RemoteOWSTestSupport;
 import org.geoserver.test.http.MockHttpClient;
 import org.geoserver.test.http.MockHttpResponse;
-import org.geoserver.wms.GetMap;
-import org.geoserver.wms.GetMapOutputFormat;
-import org.geoserver.wms.GetMapTest;
-import org.geoserver.wms.WMS;
-import org.geoserver.wms.WMSInfo;
-import org.geoserver.wms.WMSTestSupport;
+import org.geoserver.wms.*;
 import org.geoserver.wms.map.OpenLayersMapOutputFormat;
 import org.geoserver.wms.map.RenderedImageMapOutputFormat;
 import org.geotools.data.DataAccess;
@@ -1155,7 +1154,6 @@ public class GetMapIntegrationTest extends WMSTestSupport {
                                 + dpi,
                         "image/png");
         // RenderedImageBrowser.showChain(image);
-
         // check the pixels that should be in the legend
         assertPixel(image, 15, 67, Color.RED);
         assertPixel(image, 15, 107, Color.GREEN);
@@ -1827,5 +1825,220 @@ public class GetMapIntegrationTest extends WMSTestSupport {
                 new File("./src/test/resources/geoserver/wfs-ng/cascaded_wfs_layer_response.png"),
                 wfsNGImage,
                 300);
+    }
+
+    @Test
+    public void testVendorOptionClipVector() throws Exception {
+        URL exptectedResponse = this.getClass().getResource("../wms_clip_vector.png");
+        BufferedImage expectedImage = ImageIO.read(exptectedResponse);
+
+        String polygonWkt =
+                "POLYGON((-103.81153231351766%2038.73789567417218,-105.74512606351766%2031.78525172547746,-95.28614168851766%2028.053665204466157,-91.33106356351766%2031.260810654461146,-96.42871981351766%2038.66930662128952,-103.81153231351766%2038.73789567417218))";
+
+        BufferedImage response =
+                getAsImage(
+                        "wms?bbox="
+                                + bbox
+                                + "&styles=polygon&layers="
+                                + layers
+                                + "&Format=image/png"
+                                + "&request=GetMap"
+                                + "&width=550"
+                                + "&height=250"
+                                + "&srs=EPSG:4326"
+                                + "&version=1.1.1"
+                                + "&clip="
+                                + polygonWkt,
+                        "image/png");
+
+        ImageAssert.assertEquals(expectedImage, response, 100);
+
+        String polygonWkt900913 =
+                "srid=900913;POLYGON ((-11556246.91561025 4684196.6150700655, -11771493.587261306 3735154.4718813156, -10607204.772421502 3255741.4304766906, -10166927.489498887 3666666.8945377995, -10734395.987488035 4674412.675449564, -11556246.91561025 4684196.6150700655))";
+        response =
+                getAsImage(
+                        "wms?bbox="
+                                + bbox
+                                + "&styles=polygon&layers="
+                                + layers
+                                + "&Format=image/png"
+                                + "&request=GetMap"
+                                + "&width=550"
+                                + "&height=250"
+                                + "&srs=EPSG:4326"
+                                + "&version=1.1.1"
+                                + "&clip="
+                                + polygonWkt900913,
+                        "image/png");
+        ImageAssert.assertEquals(expectedImage, response, 100);
+    }
+
+    @Test
+    public void testVendorOptionClipRaster() throws Exception {
+
+        URL exptectedResponse = this.getClass().getResource("../wms_clip_raster.png");
+        BufferedImage expectedImage = ImageIO.read(exptectedResponse);
+
+        // EU south of Schengen
+        String rasterMask =
+                "POLYGON((-0.4455465239619838 49.03915485780325,27.679453476038034 48.692256255310134,34.53492222603802 32.400173313532584,5.355234726038036 37.161881019039605,-0.4455465239619838 49.03915485780325))";
+        String worldBbox = "-53.384768,4.769752,80.121092,57.719733";
+
+        BufferedImage response =
+                getAsImage(
+                        "wms?bbox="
+                                + worldBbox
+                                + "&styles=&layers="
+                                + "wcs:World"
+                                + "&Format=image/png"
+                                + "&request=GetMap"
+                                + "&width=550"
+                                + "&height=250"
+                                + "&srs=EPSG:4326"
+                                + "&version=1.1.1"
+                                + "&clip="
+                                + rasterMask,
+                        "image/png");
+        ImageAssert.assertEquals(expectedImage, response, 100);
+
+        String rasterMask900913 =
+                "srid=900913;POLYGON ((-49598.01217216109 6281507.767506711, 3081262.66638866 6222804.1297836965, 3844409.956787858 3815954.983140064, 596142.0027810101 4461694.998093233, -49598.01217216109 6281507.767506711))";
+
+        response =
+                getAsImage(
+                        "wms?bbox="
+                                + worldBbox
+                                + "&styles=&layers="
+                                + "wcs:World"
+                                + "&Format=image/png"
+                                + "&request=GetMap"
+                                + "&width=550"
+                                + "&height=250"
+                                + "&srs=EPSG:4326"
+                                + "&version=1.1.1"
+                                + "&clip="
+                                + rasterMask900913,
+                        "image/png");
+
+        ImageAssert.assertEquals(expectedImage, response, 100);
+    }
+
+    @Test
+    public void testLayoutLegendStyleOnlineResource() throws Exception {
+        Catalog catalog = getCatalog();
+        File layouts = getDataDirectory().findOrCreateDir("layouts");
+        URL layout = GetMapIntegrationTest.class.getResource("../test-layout-legend-image.xml");
+        FileUtils.copyURLToFile(layout, new File(layouts, "test-layout-legend-image.xml"));
+        File styles = getDataDirectory().findOrCreateDir("styles");
+        URL grassPng = GetMapIntegrationTest.class.getResource("../red_fill.png");
+        FileUtils.copyURLToFile(grassPng, new File(styles, "org/geoserver/wms/red_fill.png"));
+        FeatureTypeInfo giantPolygon = catalog.getFeatureTypeByName("giantPolygon");
+
+        StyleInfo sInfo = catalog.getLayerByName(giantPolygon.getName()).getDefaultStyle();
+        LegendInfoImpl legend = new LegendInfoImpl();
+        legend.setOnlineResource("org/geoserver/wms/red_fill.png");
+        legend.setFormat("image/png;charset=utf-8");
+        legend.setHeight(32);
+        legend.setWidth(32);
+        sInfo.setLegend(legend);
+        catalog.save(sInfo);
+        BufferedImage image =
+                getAsImage(
+                        "wms?bbox="
+                                + bbox
+                                + "&layers=cite:giantPolygon"
+                                + "&Format=image/png"
+                                + "&request=GetMap"
+                                + "&width=550"
+                                + "&height=150"
+                                + "&legend_options=fontName:Bitstream Vera Sans"
+                                + "&srs=EPSG:4326&format_options=layout:test-layout-legend-image",
+                        "image/png");
+
+        URL expectedResponse = getClass().getResource("giant_poly_legend_static_res.png");
+        BufferedImage expectedImage = ImageIO.read(expectedResponse);
+        ImageAssert.assertEquals(image, expectedImage, 1500);
+        sInfo.setLegend(null);
+        catalog.save(sInfo);
+    }
+
+    @Test
+    public void testLayoutLegendStyleTextFitBox() throws Exception {
+        Catalog catalog = getCatalog();
+        File layouts = getDataDirectory().findOrCreateDir("layouts");
+        URL layout = GetMapIntegrationTest.class.getResource("../test-layout-legend-image.xml");
+        FileUtils.copyURLToFile(layout, new File(layouts, "test-layout-legend-image.xml"));
+        FeatureTypeInfo giantPolygon = catalog.getFeatureTypeByName("giantPolygon");
+
+        StyleInfo sInfo = catalog.getLayerByName(giantPolygon.getName()).getDefaultStyle();
+        LegendInfoImpl legend = new LegendInfoImpl();
+        legend.setOnlineResource("org/geoserver/wms/red_fill.png");
+        legend.setFormat("image/png;charset=utf-8");
+        legend.setHeight(32);
+        legend.setWidth(32);
+        sInfo.setLegend(legend);
+        catalog.save(sInfo);
+        BufferedImage image =
+                getAsImage(
+                        "wms?bbox="
+                                + bbox
+                                + "&layers=cite:giantPolygon"
+                                + "&Format=image/png"
+                                + "&request=GetMap"
+                                + "&width=550"
+                                + "&height=150"
+                                + "&legend_options=fontName:Bitstream Vera Sans"
+                                + "&srs=EPSG:4326&format_options=layout:test-layout-legend-image",
+                        "image/png");
+
+        URL expectedResponse = getClass().getResource("giant_poly_legend.png");
+        BufferedImage expectedImage = ImageIO.read(expectedResponse);
+        ImageAssert.assertEquals(image, expectedImage, 1500);
+        sInfo.setLegend(null);
+        catalog.save(sInfo);
+    }
+
+    @Test
+    public void testLayoutLegendWithSpecifiedTargetSize() throws Exception {
+        // checking a legend decoration with a custom size bigger than the
+        // map size; expecting that the specified legend size is picked up,
+        // while resizing it accordingly to map dimension
+        File layouts = getDataDirectory().findOrCreateDir("layouts");
+        URL layout = GetMapIntegrationTest.class.getResource("../test-layout-with-size.xml");
+        FileUtils.copyURLToFile(layout, new File(layouts, "test-layout-with-size.xml"));
+        BufferedImage image =
+                getAsImage(
+                        "wms?bbox="
+                                + bbox
+                                + "&layers=cite:giantPolygon"
+                                + "&Format=image/png"
+                                + "&request=GetMap"
+                                + "&width=550"
+                                + "&height=150"
+                                + "&legend_options=fontName:Bitstream Vera Sans"
+                                + "&srs=EPSG:4326&format_options=layout:test-layout-with-size",
+                        "image/png");
+
+        URL expectedResponse = getClass().getResource("giant_poly_big_legend.png");
+        BufferedImage expectedImage = ImageIO.read(expectedResponse);
+        ImageAssert.assertEquals(image, expectedImage, 1500);
+    }
+
+    @Test
+    public void testLegendDecoratorWithRaster() throws Exception {
+
+        File layouts = getDataDirectory().findOrCreateDir("layouts");
+        URL layout = GetMapIntegrationTest.class.getResource("../test-layout-legend-image.xml");
+        FileUtils.copyURLToFile(layout, new File(layouts, "test-layout-legend-image.xml"));
+        BufferedImage image =
+                getAsImage(
+                        "wms/reflect?layers="
+                                + getLayerId(MockData.TASMANIA_DEM)
+                                + "&format_options=layout:test-layout-legend-image&styles=demTranslucent&SRS=EPSG:32753&format=image/png&bgcolor=#404040",
+                        "image/png");
+
+        URL expectedResponse = getClass().getResource("dem_with_legend.png");
+        BufferedImage expectedImage = ImageIO.read(expectedResponse);
+        ImageAssert.assertEquals(image, expectedImage, 3400);
     }
 }

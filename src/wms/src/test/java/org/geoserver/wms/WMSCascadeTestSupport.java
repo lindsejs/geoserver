@@ -13,9 +13,12 @@ import org.custommonkey.xmlunit.XpathEngine;
 import org.geoserver.catalog.CatalogBuilder;
 import org.geoserver.catalog.LayerGroupInfo;
 import org.geoserver.catalog.LayerInfo;
+import org.geoserver.catalog.StyleInfo;
 import org.geoserver.catalog.TestHttpClientProvider;
 import org.geoserver.catalog.WMSLayerInfo;
 import org.geoserver.catalog.WMSStoreInfo;
+import org.geoserver.catalog.impl.LayerInfoImpl;
+import org.geoserver.data.test.CiteTestData;
 import org.geoserver.data.test.SystemTestData;
 import org.geoserver.test.http.MockHttpClient;
 import org.geoserver.test.http.MockHttpResponse;
@@ -188,6 +191,7 @@ public abstract class WMSCascadeTestSupport extends WMSTestSupport {
         group_lyr_1.setName("group_lyr_130");
         group_lyr_1.reset();
         group_lyr_1.setMetadataBBoxRespected(true);
+
         getCatalog().add(group_lyr_1);
         LayerInfo layer1 = cb.buildLayer(group_lyr_1);
         getCatalog().add(layer1);
@@ -224,6 +228,41 @@ public abstract class WMSCascadeTestSupport extends WMSTestSupport {
                         + "?SERVICE=WMS&LAYERS=group_lyr_130&CRS=EPSG:4326&FORMAT=image%2Fpng&HEIGHT=537&TRANSPARENT=FALSE&BGCOLOR=0xFFFFFF&REQUEST=GetMap&BBOX=-10.0,0.0,-5.0,5.0&WIDTH=768&STYLES=&VERSION=1.3.0";
         wms13Client.expectGet(
                 new URL(mockSingleLayerUrl), new MockHttpResponse(pngRoadsImage, "image/png"));
+
+        String mockURLWithSingleLayerInsideBounds =
+                wms13BaseURL
+                        + "?SERVICE=WMS&LAYERS=group_lyr_230&CRS=EPSG:4326&FORMAT=image%2Fpng&HEIGHT=537&TRANSPARENT=FALSE&BGCOLOR=0xFFFFFF&REQUEST=GetMap&BBOX=0.0,0.0,20.0,20.0&WIDTH=768&STYLES=&VERSION=1.3.0";
+        wms13Client.expectGet(
+                new URL(mockURLWithSingleLayerInsideBounds),
+                new MockHttpResponse(pngRoadsImage, "image/png"));
+
+        WMSLayerInfo legacy_group_lyr = cb.buildWMSLayer("legacy_group_lyr_130");
+        legacy_group_lyr.setName("legacy_group_lyr_130");
+        getCatalog().add(legacy_group_lyr);
+
+        LayerInfoImpl legacy_lyr = (LayerInfoImpl) cb.buildLayer(legacy_group_lyr);
+        StyleInfo defaultRaster = getCatalog().getStyleByName(CiteTestData.DEFAULT_RASTER_STYLE);
+
+        legacy_lyr.setDefaultStyle(defaultRaster);
+        getCatalog().add(legacy_lyr);
+        LayerGroupInfo legacyCascadedGroup = getCatalog().getFactory().createLayerGroup();
+
+        legacyCascadedGroup.setName("cascaded_legacy_group_130");
+        legacyCascadedGroup.getLayers().add(legacy_lyr);
+
+        try {
+            cb.calculateLayerGroupBounds(legacyCascadedGroup);
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
+        getCatalog().add(legacyCascadedGroup);
+
+        String mockURLWithLegacyLayers =
+                wms13BaseURL
+                        + "?SERVICE=WMS&LAYERS=legacy_group_lyr_130&CRS=EPSG:4326&FORMAT=image/png&HEIGHT=90&TRANSPARENT=FALSE&BGCOLOR=0xFFFFFF&REQUEST=GetMap&BBOX=-90.0,-180.0,90.0,180.0&WIDTH=180&STYLES=&VERSION=1.3.0";
+        // we dont care about response, URL content is important
+        wms13Client.expectGet(
+                new URL(mockURLWithLegacyLayers), new MockHttpResponse(pngRoadsImage, "image/png"));
     }
 
     private void setupWMS110Layer() throws MalformedURLException, IOException {
@@ -242,6 +281,23 @@ public abstract class WMSCascadeTestSupport extends WMSTestSupport {
                                 + "?service=WMS&version=1.1.1&request=GetMap&layers=world4326"
                                 + "&styles&bbox=-180.0,-90.0,180.0,90.0&srs=EPSG:4326&bgcolor=0xFFFFFF&transparent=FALSE&format=image/png&width=180&height=90"),
                 new MockHttpResponse(pngImage, "image/png"));
+        // setting up mock get feature info response
+        URL featureInfo = WMSTestSupport.class.getResource("wms-features.xml");
+        wms11Client.expectGet(
+                new URL(
+                        wms11BaseURL
+                                + "?Y=50&X=50"
+                                + "&SERVICE=WMS"
+                                + "&INFO_FORMAT=application/vnd.ogc.gml"
+                                + "&LAYERS=world4326"
+                                + "&FEATURE_COUNT=50"
+                                + "&FORMAT=image%2Fpng"
+                                + "&HEIGHT=101&TRANSPARENT=TRUE"
+                                + "&REQUEST=GetFeatureInfo"
+                                + "&WIDTH=101"
+                                + "&BBOX=-103.829117187,44.3898919295,-103.804563429,44.4069939679"
+                                + "&STYLES=&SRS=EPSG:4326&QUERY_LAYERS=world4326&VERSION=1.1.1"),
+                new MockHttpResponse(featureInfo, "application/vnd.ogc.gml"));
 
         String caps = wms11BaseURL + "?service=WMS&request=GetCapabilities&version=1.1.1";
         TestHttpClientProvider.bind(wms11Client, caps);
@@ -355,7 +411,6 @@ public abstract class WMSCascadeTestSupport extends WMSTestSupport {
         group_lyr_1.setName("group_lyr_1");
         group_lyr_1.reset();
         group_lyr_1.setMetadataBBoxRespected(true);
-
         getCatalog().add(group_lyr_1);
         LayerInfo layer1 = cb.buildLayer(group_lyr_1);
         getCatalog().add(layer1);
@@ -395,6 +450,40 @@ public abstract class WMSCascadeTestSupport extends WMSTestSupport {
         // we dont care about response, URL content is important
         wms11Client.expectGet(
                 new URL(mockURLWithSingleLayer), new MockHttpResponse(pngRoadsImage, "image/png"));
+        String mockURLWithSingleLayerInsideBounds =
+                wms11BaseURL
+                        + "?SERVICE=WMS&LAYERS=group_lyr_2&FORMAT=image%2Fpng&HEIGHT=537&TRANSPARENT=FALSE&BGCOLOR=0xFFFFFF&REQUEST=GetMap&BBOX=0.0,0.0,20.0,20.0&WIDTH=768&STYLES=&SRS=EPSG:4326&VERSION=1.1.1";
+        wms11Client.expectGet(
+                new URL(mockURLWithSingleLayerInsideBounds),
+                new MockHttpResponse(pngRoadsImage, "image/png"));
+
+        WMSLayerInfo legacy_group_lyr = cb.buildWMSLayer("legacy_group_lyr");
+        legacy_group_lyr.setName("legacy_group_lyr");
+        getCatalog().add(legacy_group_lyr);
+
+        LayerInfoImpl legacy_lyr = (LayerInfoImpl) cb.buildLayer(legacy_group_lyr);
+        StyleInfo defaultRaster = getCatalog().getStyleByName(CiteTestData.DEFAULT_RASTER_STYLE);
+
+        legacy_lyr.setDefaultStyle(defaultRaster);
+        getCatalog().add(legacy_lyr);
+        LayerGroupInfo legacyCascadedGroup = getCatalog().getFactory().createLayerGroup();
+
+        legacyCascadedGroup.setName("cascaded_legacy_group");
+        legacyCascadedGroup.getLayers().add(legacy_lyr);
+
+        try {
+            cb.calculateLayerGroupBounds(legacyCascadedGroup);
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
+        getCatalog().add(legacyCascadedGroup);
+
+        String mockURLWithLegacyLayers =
+                wms11BaseURL
+                        + "?SERVICE=WMS&LAYERS=legacy_group_lyr&FORMAT=image%2Fpng&HEIGHT=90&TRANSPARENT=FALSE&BGCOLOR=0xFFFFFF&REQUEST=GetMap&BBOX=-180.0,-90.0,180.0,90.0&WIDTH=180&STYLES=&SRS=EPSG:4326&VERSION=1.1.1";
+        // we dont care about response, URL content is important
+        wms11Client.expectGet(
+                new URL(mockURLWithLegacyLayers), new MockHttpResponse(pngRoadsImage, "image/png"));
     }
 
     private void setupWMS110NfiLayer() throws MalformedURLException, IOException {

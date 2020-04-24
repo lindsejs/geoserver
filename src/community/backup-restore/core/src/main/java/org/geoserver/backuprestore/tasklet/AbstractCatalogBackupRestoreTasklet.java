@@ -105,7 +105,21 @@ public abstract class AbstractCatalogBackupRestoreTasklet<T> extends BackupResto
                         if (res.getType() == Type.DIRECTORY
                                         && !res.name().equalsIgnoreCase("temp")
                                         && !res.name().equalsIgnoreCase("tmp")
+                                        && !res.name().equalsIgnoreCase("demo")
+                                        && !res.name().equalsIgnoreCase("logs")
+                                        && !res.name().equalsIgnoreCase("images")
+                                        && !res.name().equalsIgnoreCase("gwc")
+                                        && !res.name().equalsIgnoreCase("gwc-layers")
+                                        && !res.name().equalsIgnoreCase("layergroups")
+                                        && !res.name().equalsIgnoreCase("palettes")
+                                        && !res.name().equalsIgnoreCase("plugIns")
+                                        && !res.name().equalsIgnoreCase("styles")
+                                        && !res.name().equalsIgnoreCase("security")
                                         && !res.name().equalsIgnoreCase("workspaces")
+                                        && !res.name().equalsIgnoreCase("user_projections")
+                                        && !res.name().equalsIgnoreCase("validation")
+                                        && !res.name().equalsIgnoreCase("www")
+                                        && !res.name().equalsIgnoreCase("csw")
                                 || (res.getType() == Type.RESOURCE
                                         && (res.name().endsWith(".properties")
                                                 || res.name().endsWith(".ini")
@@ -236,23 +250,12 @@ public abstract class AbstractCatalogBackupRestoreTasklet<T> extends BackupResto
         }
     }
 
-    /**
-     * @param contribution
-     * @param chunkContext
-     * @param jobExecution
-     * @return
-     * @throws Exception
-     */
+    /** */
     abstract RepeatStatus doExecute(
             StepContribution contribution, ChunkContext chunkContext, JobExecution jobExecution)
             throws Exception;
 
-    /**
-     * @param resourceStore
-     * @param baseDir
-     * @throws Exception
-     * @throws IOException
-     */
+    /** */
     public void backupRestoreAdditionalResources(ResourceStore resourceStore, Resource baseDir)
             throws Exception {
         try {
@@ -380,9 +383,6 @@ public abstract class AbstractCatalogBackupRestoreTasklet<T> extends BackupResto
     /**
      * This method dumps the current Backup index: - List of Workspaces - List of Stores - List of
      * Layers
-     *
-     * @param sourceFolder
-     * @throws IOException
      */
     protected void dumpBackupIndex(Resource sourceFolder) throws IOException {
         Element root = new Element("Index");

@@ -60,6 +60,7 @@ import org.geoserver.wms.MapLayerInfo;
 import org.geoserver.wms.WMS;
 import org.geoserver.wms.WMSErrorCode;
 import org.geoserver.wms.WMSInfo;
+import org.geoserver.wms.clip.ClipWMSGetMapCallBack;
 import org.geotools.coverage.grid.io.GridCoverage2DReader;
 import org.geotools.data.DataStore;
 import org.geotools.data.simple.SimpleFeatureSource;
@@ -74,6 +75,7 @@ import org.geotools.styling.Style;
 import org.geotools.styling.StyledLayer;
 import org.geotools.styling.StyledLayerDescriptor;
 import org.geotools.styling.UserLayer;
+import org.locationtech.jts.geom.Geometry;
 import org.opengis.feature.type.FeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory;
@@ -666,6 +668,10 @@ public class GetMapKvpRequestReader extends KvpRequestReader implements Disposab
             throw new ServiceException("TIME and ELEVATION values cannot be both multivalued");
         }
 
+        if (rawKvp.get("clip") != null) {
+            getMap.setClip(getClipGeometry(getMap));
+        }
+
         return getMap;
     }
 
@@ -800,9 +806,6 @@ public class GetMapKvpRequestReader extends KvpRequestReader implements Disposab
      * Checks the various options, OGC filter, fid filter, CQL filter, and returns a list of parsed
      * filters
      *
-     * @param getMap
-     * @param rawFilters
-     * @param cqlFilters
      * @return the list of parsed filters, or null if none was found
      */
     private List<Filter> parseFilters(
@@ -982,13 +985,6 @@ public class GetMapKvpRequestReader extends KvpRequestReader implements Disposab
      * layers,styles
      *
      * <p>NOTE: we also handle some featuretypeconstraints
-     *
-     * @param request
-     * @param currLayer
-     * @param layer
-     * @param layers
-     * @param styles
-     * @throws IOException
      */
     public static void addStyles(
             WMS wms,
@@ -1039,11 +1035,8 @@ public class GetMapKvpRequestReader extends KvpRequestReader implements Disposab
     }
 
     /**
-     * @param request
-     * @param currStyleName
      * @return the configured style named <code>currStyleName</code> or <code>null</code> if such a
      *     style does not exist on this server.
-     * @throws IOException
      */
     private static Style findStyle(final WMS wms, GetMapRequest request, String currStyleName)
             throws IOException {
@@ -1076,8 +1069,6 @@ public class GetMapKvpRequestReader extends KvpRequestReader implements Disposab
      * @throws RuntimeException if one of the StyledLayers is neither a UserLayer nor a NamedLayer.
      *     This shuoldn't happen, since the only allowed subinterfaces of StyledLayer are NamedLayer
      *     and UserLayer.
-     * @throws ServiceException
-     * @throws IOException
      */
     private Style findStyleOf(
             GetMapRequest request, MapLayerInfo layer, String styleName, StyledLayer[] styledLayers)
@@ -1183,7 +1174,6 @@ public class GetMapKvpRequestReader extends KvpRequestReader implements Disposab
      *
      * @param style The style to check
      * @param mapLayerInfo The source requested.
-     * @throws ServiceException
      */
     private static void checkStyle(Style style, MapLayerInfo mapLayerInfo) throws ServiceException {
         if (mapLayerInfo.getType() == mapLayerInfo.TYPE_RASTER) {
@@ -1467,5 +1457,25 @@ public class GetMapKvpRequestReader extends KvpRequestReader implements Disposab
         if (o == null) return false;
         else if (!(o instanceof LayerInfo)) return false;
         else return ((LayerInfo) o).getResource() instanceof WMSLayerInfo;
+    }
+
+    private Geometry getClipGeometry(GetMapRequest getMapRequest) {
+
+        // no raw kvp or request has no crs
+        if (getMapRequest.getRawKvp() == null || getMapRequest.getCrs() == null) return null;
+        String wktString = getMapRequest.getRawKvp().get("clip");
+        // not found
+        if (wktString == null) return null;
+        try {
+            Geometry geom = ClipWMSGetMapCallBack.readGeometry(wktString, getMapRequest.getCrs());
+
+            if (LOGGER.isLoggable(Level.FINE) && geom != null)
+                LOGGER.fine("parsed Clip param to geometry " + geom.toText());
+            return geom;
+        } catch (Exception e) {
+            LOGGER.severe("Ignoring clip param,Error parsing wkt in clip parameter : " + wktString);
+            LOGGER.log(Level.SEVERE, e.getMessage(), e);
+        }
+        return null;
     }
 }

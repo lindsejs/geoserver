@@ -7,7 +7,6 @@ package org.geoserver.wms.capabilities;
 
 import static org.geoserver.catalog.Predicates.asc;
 import static org.geoserver.catalog.Predicates.equal;
-import static org.geoserver.ows.util.ResponseUtils.appendPath;
 import static org.geoserver.ows.util.ResponseUtils.appendQueryString;
 import static org.geoserver.ows.util.ResponseUtils.buildSchemaURL;
 import static org.geoserver.ows.util.ResponseUtils.buildURL;
@@ -54,9 +53,7 @@ import org.geoserver.catalog.PublishedInfo;
 import org.geoserver.catalog.PublishedType;
 import org.geoserver.catalog.ResourceInfo;
 import org.geoserver.catalog.StyleInfo;
-import org.geoserver.catalog.WMSLayerInfo;
 import org.geoserver.catalog.WMTSLayerInfo;
-import org.geoserver.catalog.WorkspaceInfo;
 import org.geoserver.catalog.util.CloseableIterator;
 import org.geoserver.config.ContactInfo;
 import org.geoserver.config.GeoServer;
@@ -147,7 +144,6 @@ public class GetCapabilitiesTransformer extends TransformerBase {
     /**
      * Creates a new WMSCapsTransformer object.
      *
-     * @param wms
      * @param baseURL the base URL of the current request (usually "http://host:port/geoserver")
      * @param getMapFormats the list of supported output formats to state for the GetMap request
      * @param getLegendGraphicFormats the list of supported output formats to state for the
@@ -272,7 +268,6 @@ public class GetCapabilitiesTransformer extends TransformerBase {
          * Creates a new CapabilitiesTranslator object.
          *
          * @param handler content handler to send sax events to.
-         * @param wmsConfig2
          */
         public CapabilitiesTranslator(
                 ContentHandler handler,
@@ -378,11 +373,7 @@ public class GetCapabilitiesTransformer extends TransformerBase {
             end("Service");
         }
 
-        /**
-         * Encodes contact information in the WMS capabilities document
-         *
-         * @param geoServer
-         */
+        /** Encodes contact information in the WMS capabilities document */
         public void handleContactInfo(ContactInfo contact) {
             start("ContactInformation");
 
@@ -409,11 +400,7 @@ public class GetCapabilitiesTransformer extends TransformerBase {
             end("ContactInformation");
         }
 
-        /**
-         * Turns the keyword list to XML
-         *
-         * @param keywords
-         */
+        /** Turns the keyword list to XML */
         private void handleKeywordList(List<KeywordInfo> keywords) {
             start("KeywordList");
 
@@ -426,11 +413,7 @@ public class GetCapabilitiesTransformer extends TransformerBase {
             end("KeywordList");
         }
 
-        /**
-         * Turns the metadata URL list to XML
-         *
-         * @param keywords
-         */
+        /** Turns the metadata URL list to XML */
         private void handleMetadataList(Collection<MetadataLinkInfo> metadataURLs) {
             if (metadataURLs == null) {
                 return;
@@ -458,11 +441,7 @@ public class GetCapabilitiesTransformer extends TransformerBase {
             }
         }
 
-        /**
-         * Turns the data URL list to XML
-         *
-         * @param keywords
-         */
+        /** Turns the data URL list to XML */
         private void handleDataList(Collection<DataLinkInfo> dataURLs) {
             if (dataURLs == null) {
                 return;
@@ -998,8 +977,6 @@ public class GetCapabilitiesTransformer extends TransformerBase {
          * LatLonBoundingBox, and then writes WMS specific layer properties as Styles, Scale Hint,
          * etc.
          *
-         * @throws RuntimeException
-         * @throws IOException
          * @task TODO: write wms specific elements.
          */
         @SuppressWarnings("deprecation")
@@ -1143,8 +1120,6 @@ public class GetCapabilitiesTransformer extends TransformerBase {
          * b) max=value => <ScaleHint min=0 max=value/>
          * c) min=value => <ScaleHint min=value max=infinity/>
          * </pre>
-         *
-         * @param layer
          */
         private void handleScaleHint(PublishedInfo layer) {
 
@@ -1405,8 +1380,6 @@ public class GetCapabilitiesTransformer extends TransformerBase {
         /**
          * Returns a list of top level groups, that is, the ones that are not nested within other
          * layer groups
-         *
-         * @param allGroups
          */
         private List<LayerGroupInfo> filterNestedGroups(List<LayerGroupInfo> allGroups) {
             LinkedHashSet<LayerGroupInfo> result = new LinkedHashSet<LayerGroupInfo>(allGroups);
@@ -1488,128 +1461,87 @@ public class GetCapabilitiesTransformer extends TransformerBase {
         protected void handleLegendURL(
                 LayerInfo layer, LegendInfo legend, StyleInfo style, StyleInfo sampleStyle) {
             // add CapabilityUtil.validateLegendInfo
+            int legendWidth = GetLegendGraphicRequest.DEFAULT_WIDTH;
+            int legendHeight = GetLegendGraphicRequest.DEFAULT_HEIGHT;
+
+            String defaultFormat = GetLegendGraphicRequest.DEFAULT_FORMAT;
+
             if (validateLegendInfo(legend)) {
                 if (LOGGER.isLoggable(Level.FINE)) {
                     LOGGER.fine("using user supplied legend URL");
                 }
+                // reading sizes of external graphics
+                legendWidth = legend.getWidth();
+                legendHeight = legend.getHeight();
+                // remove any charset info
+                defaultFormat = legend.getFormat().replaceFirst(";charset=utf-8", "");
 
-                AttributesImpl attrs = new AttributesImpl();
-                attrs.addAttribute("", "width", "width", "", String.valueOf(legend.getWidth()));
-                attrs.addAttribute("", "height", "height", "", String.valueOf(legend.getHeight()));
-
-                start("LegendURL", attrs);
-
-                element("Format", legend.getFormat());
-                attrs.clear();
-                attrs.addAttribute("", "xmlns:xlink", "xmlns:xlink", "", XLINK_NS);
-                attrs.addAttribute(XLINK_NS, "type", "xlink:type", "", "simple");
-                WorkspaceInfo styleWs = sampleStyle.getWorkspace();
-                String legendUrl;
-
-                if (layer.getResource() instanceof WMSLayerInfo)
-                    legendUrl = legend.getOnlineResource();
-                else if (styleWs != null) {
-                    legendUrl =
-                            buildURL(
-                                    request.getBaseUrl(),
-                                    appendPath(
-                                            "styles",
-                                            styleWs.getName(),
-                                            legend.getOnlineResource()),
-                                    null,
-                                    URLType.RESOURCE);
-                } else {
-                    legendUrl =
-                            buildURL(
-                                    request.getBaseUrl(),
-                                    appendPath("styles", legend.getOnlineResource()),
-                                    null,
-                                    URLType.RESOURCE);
-                }
-                attrs.addAttribute(XLINK_NS, "href", "xlink:href", "", legendUrl);
-                element("OnlineResource", null, attrs);
-
-                end("LegendURL");
-            } else {
-                int legendWidth = GetLegendGraphicRequest.DEFAULT_WIDTH;
-                int legendHeight = GetLegendGraphicRequest.DEFAULT_HEIGHT;
-
-                if (sampleStyle != null) {
-                    // delegate to legendSample the calculus of proper legend size for
-                    // the given style
-                    Dimension dimension;
-                    try {
-                        dimension = legendSample.getLegendURLSize(sampleStyle);
-                        if (dimension != null) {
-                            legendWidth = (int) dimension.getWidth();
-                            legendHeight = (int) dimension.getHeight();
-                        }
-                    } catch (Exception e) {
-                        LOGGER.log(
-                                Level.WARNING, "Error getting LegendURL dimensions from sample", e);
+            } else if (sampleStyle != null) {
+                // delegate to legendSample the calculus of proper legend size for
+                // the given style
+                Dimension dimension;
+                try {
+                    dimension = legendSample.getLegendURLSize(sampleStyle);
+                    if (dimension != null) {
+                        legendWidth = (int) dimension.getWidth();
+                        legendHeight = (int) dimension.getHeight();
                     }
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Error getting LegendURL dimensions from sample", e);
                 }
-                String defaultFormat = GetLegendGraphicRequest.DEFAULT_FORMAT;
-
-                if (null == wmsConfig.getLegendGraphicOutputFormat(defaultFormat)) {
-                    if (LOGGER.isLoggable(Level.WARNING)) {
-                        LOGGER.warning(
-                                new StringBuffer("Default legend format (")
-                                        .append(defaultFormat)
-                                        .append(
-                                                ")is not supported (jai not available?), can't add LegendURL element")
-                                        .toString());
-                    }
-
-                    return;
-                }
-
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine("Adding GetLegendGraphic call as LegendURL");
-                }
-
-                AttributesImpl attrs = new AttributesImpl();
-                attrs.addAttribute("", "width", "width", "", String.valueOf(legendWidth));
-
-                attrs.addAttribute("", "height", "height", "", String.valueOf(legendHeight));
-
-                start("LegendURL", attrs);
-
-                element("Format", defaultFormat);
-                attrs.clear();
-
-                String layerName = layer.prefixedName();
-                Map<String, String> params =
-                        params(
-                                "request",
-                                "GetLegendGraphic",
-                                "format",
-                                defaultFormat,
-                                "width",
-                                String.valueOf(GetLegendGraphicRequest.DEFAULT_WIDTH),
-                                "height",
-                                String.valueOf(GetLegendGraphicRequest.DEFAULT_HEIGHT),
-                                "layer",
-                                layerName);
-                if (style != null) {
-                    params.put("style", style.getName());
-                }
-                String legendURL = buildURL(request.getBaseUrl(), "wms", params, URLType.SERVICE);
-
-                attrs.addAttribute("", "xmlns:xlink", "xmlns:xlink", "", XLINK_NS);
-                attrs.addAttribute(XLINK_NS, "type", "xlink:type", "", "simple");
-                attrs.addAttribute(XLINK_NS, "href", "xlink:href", "", legendURL);
-                element("OnlineResource", null, attrs);
-
-                end("LegendURL");
             }
+
+            if (null == wmsConfig.getLegendGraphicOutputFormat(defaultFormat)) {
+                if (LOGGER.isLoggable(Level.WARNING)) {
+                    LOGGER.warning(
+                            new StringBuffer("Default legend format (")
+                                    .append(defaultFormat)
+                                    .append(
+                                            ")is not supported (jai not available?), can't add LegendURL element")
+                                    .toString());
+                }
+
+                return;
+            }
+
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.fine("Adding GetLegendGraphic call as LegendURL");
+            }
+
+            AttributesImpl attrs = new AttributesImpl();
+            attrs.addAttribute("", "width", "width", "", String.valueOf(legendWidth));
+
+            attrs.addAttribute("", "height", "height", "", String.valueOf(legendHeight));
+
+            start("LegendURL", attrs);
+
+            element("Format", defaultFormat);
+            attrs.clear();
+
+            String layerName = layer.prefixedName();
+            Map<String, String> params =
+                    params(
+                            "request",
+                            "GetLegendGraphic",
+                            "format",
+                            defaultFormat,
+                            "width",
+                            String.valueOf(GetLegendGraphicRequest.DEFAULT_WIDTH),
+                            "height",
+                            String.valueOf(GetLegendGraphicRequest.DEFAULT_HEIGHT),
+                            "layer",
+                            layerName);
+            if (style != null) {
+                params.put("style", style.getName());
+            }
+            String legendURL = buildURL(request.getBaseUrl(), "wms", params, URLType.SERVICE);
+            CapabilityUtil.addGetLegendAttributes(attrs, legendURL, XLINK_NS);
+            element("OnlineResource", null, attrs);
+
+            end("LegendURL");
         }
 
-        /**
-         * Encodes a LatLonBoundingBox for the given Envelope.
-         *
-         * @param bbox
-         */
+        /** Encodes a LatLonBoundingBox for the given Envelope. */
         private void handleLatLonBBox(Envelope bbox) {
             String minx = String.valueOf(bbox.getMinX());
             String miny = String.valueOf(bbox.getMinY());
@@ -1625,11 +1557,7 @@ public class GetCapabilitiesTransformer extends TransformerBase {
             element("LatLonBoundingBox", null, bboxAtts);
         }
 
-        /**
-         * Encodes a BoundingBox for the given Envelope.
-         *
-         * @param bbox
-         */
+        /** Encodes a BoundingBox for the given Envelope. */
         private void handleBBox(Envelope bbox, String SRS) {
             String minx = String.valueOf(bbox.getMinX());
             String miny = String.valueOf(bbox.getMinY());

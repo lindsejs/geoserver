@@ -11,6 +11,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import java.awt.image.BufferedImage;
 import java.net.URL;
@@ -311,7 +312,23 @@ public class WMSCascadeTest extends WMSCascadeTestSupport {
         // the request should generate exepected remote WMS URL
         // e.g default remote styles should include the forced remote style of one layer
         // and empty for second layer
-        // For Mock URL check WMSCascadeTestSupport.setupWMS110Layer()
+        // For Mock URL check WMSCascadeTestSupport.setupWMS130Layer()
+        BufferedImage response = getAsImage(getMapRequest, "image/png");
+        assertNotNull(response);
+    }
+
+    @Test
+    public void testLegacyCascadeLayerGroup() throws Exception {
+
+        String getMapRequest =
+                "wms?bbox=-90,-180,90,180"
+                        + "&styles=&layers=cascaded_legacy_group_130"
+                        + "&Format=image/png&request=GetMap&version=1.3.0&service=wms"
+                        + "&width=180&height=90&crs=EPSG:4326";
+
+        // the request should generate exepected remote WMS URL
+        // e.g default remote styles should be empty in remote request
+        // For Mock URL check WMSCascadeTestSupport.setupWMS130Layer()
         BufferedImage response = getAsImage(getMapRequest, "image/png");
         assertNotNull(response);
     }
@@ -370,5 +387,107 @@ public class WMSCascadeTest extends WMSCascadeTestSupport {
         // since the BBOX only covers one layer
         response = getAsImage(getMapRequest, "image/png");
         assertNotNull(response);
+    }
+
+    @Test
+    public void testScaleDenominator() throws Exception {
+        LayerGroupInfo info = getCatalog().getLayerGroupByName("cascaded_group_130");
+        LayerInfo groupLayer2 = getCatalog().getLayerByName("group_lyr_230");
+        assertNotNull(info);
+        assertNotNull(groupLayer2);
+        ReferencedEnvelope request1 =
+                new ReferencedEnvelope(groupLayer2.getResource().getNativeBoundingBox());
+        // minx,miny,maxx,maxy
+        String lyrBBox =
+                request1.getMinX()
+                        + ","
+                        + request1.getMinY()
+                        + ","
+                        + request1.getMaxX()
+                        + ","
+                        + request1.getMaxY();
+        // configure max scale on one of the layers
+        // set max scale as small as possible to have it filtered
+        WMSLayerInfo groupLayer1WMSResource =
+                (WMSLayerInfo) getCatalog().getLayerByName("group_lyr_130").getResource();
+        groupLayer1WMSResource.setMinScale(1d);
+        groupLayer1WMSResource.setMaxScale(1000d);
+        getCatalog().save(groupLayer1WMSResource);
+
+        String getMapRequest =
+                "wms?service=WMS&version=1.3.0"
+                        + "&request=GetMap"
+                        + "&layers="
+                        + info.getName()
+                        + "&bbox="
+                        + lyrBBox
+                        + "&width=768&height=537&srs=EPSG:4326&Format=image/png";
+
+        // should result in a request with both group layers present
+        // should invoke expected Mock URL in which both layers are present
+        // since the BBOX covers both
+        // but group_lyr_1 min/max scale is outside the bound of map scale
+        try {
+            BufferedImage response = getAsImage(getMapRequest, "image/png");
+            assertNotNull(response);
+        } finally {
+            groupLayer1WMSResource.setMinScale(null);
+            groupLayer1WMSResource.setMaxScale(null);
+            getCatalog().save(groupLayer1WMSResource);
+        }
+    }
+
+    @Test
+    public void testVendorOptionClip() throws Exception {
+        URL exptectedResponse = this.getClass().getResource("../wms_clip_cascaded.png");
+        BufferedImage expectedImage = ImageIO.read(exptectedResponse);
+        String rasterMask =
+                "POLYGON((-14.50804652396198 55.579454354599356,34.53492222603802 55.579454354599356,34.53492222603802 32.400173313532584,-14.50804652396198 32.400173313532584,-14.50804652396198 55.579454354599356))";
+        BufferedImage response =
+                getAsImage(
+                        "wms?bbox=-90,-180,90,180"
+                                + "&styles=&layers="
+                                + WORLD4326_110
+                                + "&Format=image/png&request=GetMap&version=1.3.0&service=wms"
+                                + "&width=180&height=90&crs=EPSG:4326"
+                                + "&clip="
+                                + rasterMask,
+                        "image/png");
+        ImageAssert.assertEquals(expectedImage, response, 100);
+        String rasterMask900913 =
+                "srid=900913;POLYGON ((-1615028.3514525702 7475148.401208023, 3844409.956787858 7475148.401208023, 3844409.956787858 3815954.983140064, -1615028.3514525702 3815954.983140064, -1615028.3514525702 7475148.401208023))";
+        response =
+                getAsImage(
+                        "wms?bbox=-90,-180,90,180"
+                                + "&styles=&layers="
+                                + WORLD4326_110
+                                + "&Format=image/png&request=GetMap&version=1.3.0&service=wms"
+                                + "&width=180&height=90&crs=EPSG:4326"
+                                + "&clip="
+                                + rasterMask900913,
+                        "image/png");
+        ImageAssert.assertEquals(expectedImage, response, 100);
+    }
+
+    @Test
+    public void testGetFeatureInfoClipParam() throws Exception {
+
+        String wkt =
+                "POLYGON((-103.81422590870386 44.406335162406855,-103.81645750660425 44.39480642272217,-103.78839087147242 44.39210787899582,-103.78718924183374 44.40443430323224,-103.80598616261011 44.4091556783195,-103.81422590870386 44.406335162406855))";
+        String url =
+                "wms?SERVICE=WMS&VERSION=1.1.0&REQUEST=GetFeatureInfo&FORMAT=image/png&TRANSPARENT=true"
+                        + "&QUERY_LAYERS="
+                        + WORLD4326_110
+                        + "&STYLES&LAYERS="
+                        + WORLD4326_110
+                        + "&INFO_FORMAT=application/json"
+                        + "&FEATURE_COUNT=50&X=50&Y=50&SRS=EPSG:4326&WIDTH=101&HEIGHT=101&BBOX=-103.829117187,44.3898919295,-103.804563429,44.4069939679"
+                        + "&CLIP="
+                        + wkt;
+        String json = getAsString(url);
+        assertNotNull(json);
+        // assert no features were returned
+        JSONObject responseJson = JSONObject.fromObject(json);
+        assertTrue(responseJson.getJSONArray("features").isEmpty());
     }
 }
